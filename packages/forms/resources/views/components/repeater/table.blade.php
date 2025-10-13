@@ -14,6 +14,7 @@
     $addBetweenAction = $getAction($getAddBetweenActionName());
     $cloneAction = $getAction($getCloneActionName());
     $deleteAction = $getAction($getDeleteActionName());
+    $duplicateAction = $getAction($getDuplicateActionName());
     $moveDownAction = $getAction($getMoveDownActionName());
     $moveUpAction = $getAction($getMoveUpActionName());
     $reorderAction = $getAction($getReorderActionName());
@@ -24,17 +25,43 @@
     $isDeletable = $isDeletable();
     $isReorderableWithButtons = $isReorderableWithButtons();
     $isReorderableWithDragAndDrop = $isReorderableWithDragAndDrop();
+    $isSelectable = $isSelectable();
+    $isBulkDuplicatable = $isBulkDuplicatable();
 
     $key = $getKey();
     $statePath = $getStatePath();
 
     $tableColumns = $getTableColumns();
+    $bulkActions = $getBulkActions();
+    $footerActions = $getFooterActions();
 
     $isCompact = $isCompact();
 @endphp
 
 <x-dynamic-component :component="$fieldWrapperView" :field="$field">
     <div
+        @if ($isSelectable)
+            x-data="{
+                selectedItems: $wire.entangle('{{ $statePath }}.selectedItems'),
+                toggleSelectAll() {
+                    if (this.selectedItems.length === {{ count($items) }}) {
+                        this.selectedItems = [];
+                    } else {
+                        this.selectedItems = @js(array_keys($items));
+                    }
+                },
+                toggleSelectedItem(key) {
+                    if (this.selectedItems.includes(key)) {
+                        this.selectedItems = this.selectedItems.filter(item => item !== key);
+                    } else {
+                        this.selectedItems.push(key);
+                    }
+                },
+                isItemSelected(key) {
+                    return this.selectedItems.includes(key);
+                },
+            }"
+        @endif
         {{ $attributes
                 ->merge($getExtraAttributes(), escape: false)
                 ->class([
@@ -46,6 +73,16 @@
             <table>
                 <thead>
                     <tr>
+                        @if ($isSelectable)
+                            <th class="fi-fo-table-repeater-selection-cell">
+                                <input
+                                    type="checkbox"
+                                    x-on:click="toggleSelectAll()"
+                                    x-bind:checked="selectedItems.length === {{ count($items) }} && {{ count($items) }} > 0"
+                                />
+                            </th>
+                        @endif
+
                         @if ((count($items) > 1) && ($isReorderableWithButtons || $isReorderableWithDragAndDrop))
                             <th
                                 class="fi-fo-table-repeater-empty-header-cell"
@@ -111,6 +148,17 @@
                             wire:key="{{ $item->getLivewireKey() }}.item"
                             x-sortable-item="{{ $itemKey }}"
                         >
+                            @if ($isSelectable)
+                                <td class="fi-fo-table-repeater-selection-cell">
+                                    <input
+                                        type="checkbox"
+                                        value="{{ $itemKey }}"
+                                        x-on:click="toggleSelectedItem(@js($itemKey))"
+                                        x-bind:checked="isItemSelected(@js($itemKey))"
+                                    />
+                                </td>
+                            @endif
+
                             @if ((count($items) > 1) && ($isReorderableWithButtons || $isReorderableWithDragAndDrop))
                                 <td>
                                     @if ($reorderActionIsVisible || $moveUpActionIsVisible || $moveDownActionIsVisible)
@@ -225,6 +273,30 @@
                 ])
             >
                 {{ $addAction }}
+            </div>
+        @endif
+
+        @if ($isSelectable && ($isBulkDuplicatable || count($bulkActions) > 0 || count($footerActions) > 0))
+            <div
+                x-cloak
+                x-show="selectedItems.length > 0"
+                class="fi-fo-table-repeater-bulk-actions"
+            >
+                @if ($isBulkDuplicatable && $duplicateAction->isVisible())
+                    <div x-on:click="$wire.mountAction(@js($duplicateAction->getName()), { selectedItems: selectedItems }, { schemaComponent: @js($key) })">
+                        {{ $duplicateAction }}
+                    </div>
+                @endif
+
+                @foreach ($bulkActions as $bulkAction)
+                    <div x-on:click="$wire.mountAction(@js($bulkAction->getName()), { selectedItems: selectedItems }, { schemaComponent: @js($key) })">
+                        {{ $bulkAction }}
+                    </div>
+                @endforeach
+
+                @foreach ($footerActions as $footerAction)
+                    {{ $footerAction }}
+                @endforeach
             </div>
         @endif
     </div>

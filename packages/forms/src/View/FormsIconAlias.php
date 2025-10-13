@@ -56,6 +56,8 @@ class FormsIconAlias
 
     const COMPONENTS_REPEATER_ACTIONS_DELETE = 'forms::components.repeater.actions.delete';
 
+    const COMPONENTS_REPEATER_ACTIONS_DUPLICATE = 'forms::components.repeater.actions.duplicate';
+
     const COMPONENTS_REPEATER_ACTIONS_EXPAND = 'forms::components.repeater.actions.expand';
 
     const COMPONENTS_REPEATER_ACTIONS_MOVE_DOWN = 'forms::components.repeater.actions.move-down';

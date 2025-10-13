@@ -357,6 +357,10 @@ return [
                 'label' => 'Clone',
             ],
 
+            'duplicate' => [
+                'label' => 'Duplicate',
+            ],
+
             'reorder' => [
                 'label' => 'Move',
             ],

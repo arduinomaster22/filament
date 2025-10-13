@@ -122,6 +122,27 @@ class Repeater extends Field implements CanConcealComponents, HasExtraItemAction
 
     protected bool | Closure $shouldPartiallyRenderAfterActionsCalled = true;
 
+    protected bool | Closure $isSelectable = false;
+
+    /**
+     * @var array<string>
+     */
+    public array $selectedItems = [];
+
+    /**
+     * @var array<Action> | Closure
+     */
+    protected array | Closure $bulkActions = [];
+
+    protected bool | Closure $isBulkDuplicatable = false;
+
+    /**
+     * @var array<Action> | Closure
+     */
+    protected array | Closure $footerActions = [];
+
+    protected ?Closure $modifyDuplicateActionUsing = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -166,6 +187,7 @@ class Repeater extends Field implements CanConcealComponents, HasExtraItemAction
             fn (Repeater $component): Action => $component->getCollapseAction(),
             fn (Repeater $component): Action => $component->getCollapseAllAction(),
             fn (Repeater $component): Action => $component->getDeleteAction(),
+            fn (Repeater $component): Action => $component->getDuplicateAction(),
             fn (Repeater $component): Action => $component->getExpandAction(),
             fn (Repeater $component): Action => $component->getExpandAllAction(),
             fn (Repeater $component): Action => $component->getMoveDownAction(),
@@ -1419,5 +1441,155 @@ class Repeater extends Field implements CanConcealComponents, HasExtraItemAction
     public function shouldPartiallyRenderAfterActionsCalled(): bool
     {
         return (bool) $this->evaluate($this->shouldPartiallyRenderAfterActionsCalled);
+    }
+
+    public function selectable(bool | Closure $condition = true): static
+    {
+        $this->isSelectable = $condition;
+
+        return $this;
+    }
+
+    public function isSelectable(): bool
+    {
+        if ($this->isDisabled()) {
+            return false;
+        }
+
+        if (! $this->isTable()) {
+            return false;
+        }
+
+        return (bool) $this->evaluate($this->isSelectable);
+    }
+
+    /**
+     * @param  array<Action> | Closure  $actions
+     */
+    public function bulkActions(array | Closure $actions): static
+    {
+        $this->bulkActions = $actions;
+
+        return $this;
+    }
+
+    /**
+     * @return array<Action>
+     */
+    public function getBulkActions(): array
+    {
+        $actions = $this->evaluate($this->bulkActions);
+
+        if (! is_array($actions)) {
+            $actions = [];
+        }
+
+        return $actions;
+    }
+
+    public function hasBulkActions(): bool
+    {
+        return count($this->getBulkActions()) > 0;
+    }
+
+    public function bulkDuplicatable(bool | Closure $condition = true): static
+    {
+        $this->isBulkDuplicatable = $condition;
+
+        return $this;
+    }
+
+    public function isBulkDuplicatable(): bool
+    {
+        if (! $this->isSelectable()) {
+            return false;
+        }
+
+        return (bool) $this->evaluate($this->isBulkDuplicatable);
+    }
+
+    /**
+     * @param  array<Action> | Closure  $actions
+     */
+    public function footerActions(array | Closure $actions): static
+    {
+        $this->footerActions = $actions;
+
+        return $this;
+    }
+
+    /**
+     * @return array<Action>
+     */
+    public function getFooterActions(): array
+    {
+        $actions = $this->evaluate($this->footerActions);
+
+        if (! is_array($actions)) {
+            $actions = [];
+        }
+
+        return $actions;
+    }
+
+    public function getDuplicateAction(): Action
+    {
+        $action = Action::make($this->getDuplicateActionName())
+            ->label(__('filament-forms::components.repeater.actions.duplicate.label'))
+            ->icon(FilamentIcon::resolve(FormsIconAlias::COMPONENTS_REPEATER_ACTIONS_DUPLICATE) ?? Heroicon::DocumentDuplicate)
+            ->color('gray')
+            ->action(function (array $arguments, Repeater $component): void {
+                $selectedItems = $arguments['selectedItems'] ?? [];
+                $items = $component->getRawState();
+
+                foreach ($selectedItems as $selectedKey) {
+                    $newUuid = $component->generateUuid();
+                    if ($newUuid) {
+                        $items[$newUuid] = $items[$selectedKey];
+                    } else {
+                        $items[] = $items[$selectedKey];
+                    }
+                }
+
+                $component->rawState($items);
+                $component->callAfterStateUpdated();
+
+                $component->shouldPartiallyRenderAfterActionsCalled() ? $component->partiallyRender() : null;
+            })
+            ->button()
+            ->size(Size::Small)
+            ->extraAttributes([
+                'x-cloak' => true,
+                'x-show' => 'selectedItems.length > 0',
+            ])
+            ->visible(fn (Repeater $component): bool => $component->isBulkDuplicatable());
+
+        if ($this->modifyDuplicateActionUsing) {
+            $action = $this->evaluate($this->modifyDuplicateActionUsing, [
+                'action' => $action,
+            ]) ?? $action;
+        }
+
+        return $action;
+    }
+
+    public function duplicateAction(?Closure $callback): static
+    {
+        $this->modifyDuplicateActionUsing = $callback;
+
+        return $this;
+    }
+
+    public function getDuplicateActionName(): string
+    {
+        return 'duplicate';
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getSelectedItems(): array
+    {
+        return $this->selectedItems;
     }
 }
